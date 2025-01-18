@@ -2,6 +2,8 @@ package bindings
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/Southclaws/dt"
@@ -50,7 +52,7 @@ func NewDatagraph(
 			isEnabled := ii.Capabilities.Has(instance_info.CapabilitySemdex)
 
 			path := c.Path()
-			if path == "/api/datagraph/qna" {
+			if path == "/api/datagraph/ask" {
 				if !isEnabled {
 					return echo.NewHTTPError(http.StatusNotImplemented, "Semdex is not enabled")
 				}
@@ -66,7 +68,7 @@ func NewDatagraph(
 
 				w := c.Response().Writer
 
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 
 				// if fails to cast, do nothing, flusher nil, just guard clause.
 				flusher, ok := w.(http.Flusher)
@@ -81,7 +83,22 @@ func NewDatagraph(
 						return err
 					}
 
-					if _, err := w.Write([]byte(chunk)); err != nil {
+					msg := ""
+
+					b, err := json.Marshal(chunk)
+					if err != nil {
+						return err
+					}
+
+					switch chunk.(type) {
+					case *semdex.AskResponseChunkText:
+						msg = fmt.Sprintf("event: text\ndata: %s\n\n", string(b))
+
+					case *semdex.AskResponseChunkMeta:
+						msg = fmt.Sprintf("event: meta\ndata: %s\n\n", string(b))
+					}
+
+					if _, err := w.Write([]byte(msg)); err != nil {
 						return err
 					}
 
@@ -89,6 +106,16 @@ func NewDatagraph(
 						flusher.Flush()
 					}
 				}
+
+				if _, err := w.Write([]byte("event: end\n\n")); err != nil {
+					return err
+				}
+
+				if flusher != nil {
+					flusher.Flush()
+				}
+
+				return nil
 			}
 
 			return next(c)

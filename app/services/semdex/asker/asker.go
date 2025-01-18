@@ -61,8 +61,8 @@ func newAsker(cfg config.Config, searcher semdex.Searcher, prompter ai.Prompter)
 }
 
 var AnswerPrompt = template.Must(template.New("").Parse(`
-You are an expert assistant. Answer the user's question accurately and concisely using the provided sources. Cite the sources in a separate list at the end of your answer. 
-Ensure that the source URLs (in "sdr" format) are kept exactly as they appear, without modification or breaking them across lines.
+You are an expert assistant. Answer the user's question accurately and concisely using the provided sources. You MUST cite the sources in a separate list at the end of your answer. 
+Ensure that the source URLs are kept exactly as they appear, without modification or breaking them across lines.
 You MUST include references to the sources below in your answer in addition to other sources you may have.
 
 Sources:
@@ -77,10 +77,7 @@ Question: {{ .Question }}
 Answer:
 1. Provide your answer here in clear and concise paragraphs.
 2. Use information from the sources above to support your answer, but do not include citations inline.
-3. Include a "Sources" section with the source URLs listed, like this:
-
-Sources:
-- [title](url): Short description of the source content
+3. Include a "Sources" section with the sources listed.
 `))
 
 const maxContextForRAG = 10
