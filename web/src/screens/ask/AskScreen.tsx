@@ -66,27 +66,27 @@ export function Ask() {
   const [sources, setSources] = useState<Record<string, DatagraphRef>>({});
   const isEnabled = useCapability("semdex");
 
-  useEffect(() => {
-    // Helper to extract SDR references from content
-    const extractSources = (text: string): Record<string, DatagraphRef> => {
-      const sdrRegex = /sdr:(\w+)\/([\w-]+)/g;
-      const refs = {};
+  // useEffect(() => {
+  //   // Helper to extract SDR references from content
+  //   const extractSources = (text: string): Record<string, DatagraphRef> => {
+  //     const sdrRegex = /sdr:(\w+)\/([\w-]+)/g;
+  //     const refs = {};
 
-      text.replace(sdrRegex, (_, kind, id) => {
-        if (id.length === 20) {
-          const kp = getRouteForKind(kind);
-          refs[id] = { id, kp: kp, href: `${WEB_ADDRESS}/${kp}/${id}` };
-        }
-        return "";
-      });
+  //     text.replace(sdrRegex, (_, kind, id) => {
+  //       if (id.length === 20) {
+  //         const kp = getRouteForKind(kind);
+  //         refs[id] = { id, kp: kp, href: `${WEB_ADDRESS}/${kp}/${id}` };
+  //       }
+  //       return "";
+  //     });
 
-      return refs;
-    };
+  //     return refs;
+  //   };
 
-    const newSources = extractSources(content);
+  //   const newSources = extractSources(content);
 
-    setSources((current) => ({ ...current, ...newSources }));
-  }, [content]);
+  //   setSources((current) => ({ ...current, ...newSources }));
+  // }, [content]);
 
   // Helper to replace SDR URLs with frontend links
   const replaceSdrUrls = (text: string): string => {
@@ -108,39 +108,30 @@ export function Ask() {
 
     await handle(
       async () => {
-        const response = await fetch(
-          `${API_ADDRESS}/api/datagraph/qna?q=${encodeURIComponent(question)}`,
-          {
-            method: "GET",
-            mode: "cors",
-            credentials: "include",
-          },
-        );
-
-        if (response.status === 404) {
-          throw new Error("No answer could be found for this question.");
-        }
-
-        if (!response.ok) {
-          throw new Error(`Error: ${response.statusText}`);
-        }
-
-        if (!response.body) {
-          throw new Error(`Error: response is empty`);
-        }
-
         setSources({});
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
+        const source = new EventSource(
+          `${API_ADDRESS}/api/datagraph/ask?q=${encodeURIComponent(question)}`,
+        );
 
-        while (!done) {
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          const chunk = decoder.decode(value, { stream: true });
-          setContent((prev) => prev + chunk);
-        }
+        source.onerror = (err) => {
+          source.close();
+        };
+
+        source.addEventListener("text", (e) => {
+          const data = JSON.parse(e.data);
+          const { chunk } = data;
+          if (chunk) {
+            setContent((prev) => prev + chunk);
+          }
+        });
+
+        source.addEventListener("meta", (e) => {
+          const data = JSON.parse(e.data);
+          const { refs, urls } = data;
+
+          console.log(refs, urls);
+        });
       },
       {
         errorToast: false,
